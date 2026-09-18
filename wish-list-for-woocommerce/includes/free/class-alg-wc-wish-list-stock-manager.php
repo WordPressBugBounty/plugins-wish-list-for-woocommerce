@@ -2,7 +2,7 @@
 /**
  * Wish List for WooCommerce - Stock Manager.
  *
- * @version 3.2.4
+ * @version 3.4.7
  * @since   1.3.2
  * @author  WPFactory.
  */
@@ -70,7 +70,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 		/**
 		 * Saves stock alert info in database.
 		 *
-		 * @version 1.3.2
+		 * @version 3.4.5
 		 * @since   1.3.2
 		 *
 		 * @param   null  $args
@@ -84,15 +84,22 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 				'enable' => isset( $args['enable'] ) ? $args['enable'] : null,
 			) );
 
+			if ( isset( $_REQUEST['alg_wcwl_user_stock_alert_form'] ) ) {
+				$posted_nonce = isset( $_POST['alg_wcwl_user_stock_alert_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['alg_wcwl_user_stock_alert_nonce'] ) ) : '';
+				if ( empty( $posted_nonce ) || ! wp_verify_nonce( $posted_nonce, 'alg_wcwl_user_stock_alert_action' ) ) {
+					return false;
+				}
+			}
+
 			if ( $args['email'] == null ) {
-				$args['email'] = isset( $_REQUEST['alg_wcwl_user_stock_alert_email'] ) ? $_REQUEST['alg_wcwl_user_stock_alert_email'] : null;
+				$args['email'] = isset( $_REQUEST['alg_wcwl_user_stock_alert_email'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['alg_wcwl_user_stock_alert_email'] ) ) : null;
 			}
 
 			if ( $args['enable'] == null ) {
 				if ( ! isset( $_REQUEST['alg_wcwl_user_stock_alert_form'] ) ) {
 					return false;
 				}
-				$args['enable'] = isset( $_REQUEST['alg_wcwl_user_stock_alert'] ) ? $_REQUEST['alg_wcwl_user_stock_alert'] : false;
+				$args['enable'] = isset( $_REQUEST['alg_wcwl_user_stock_alert'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['alg_wcwl_user_stock_alert'] ) ) : false;
 			}
 
 			$args['enable'] = filter_var( $args['enable'], FILTER_VALIDATE_BOOLEAN );
@@ -116,7 +123,8 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 				'enable'        => $args['enable']
 			);
 
-			update_option( $this->option_stock_alert, $stock_alert_opt );
+			// Autoload off: this option can grow large with guest subscriptions.
+			update_option( $this->option_stock_alert, $stock_alert_opt, false );
 		}
 
 		/**
@@ -178,7 +186,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 		/**
 		 * get_registered_users_to_notify.
 		 *
-		 * @version 2.0.1
+		 * @version 3.4.7
 		 * @since   1.3.2
 		 *
 		 * @param $product_id
@@ -186,29 +194,37 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 		 * @return array
 		 */
 		public function get_registered_users_to_notify( $product_id ) {
-			$user_query = new WP_User_Query( array(
-				'meta_key'   => Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM,
-				'meta_value' => $product_id,
-			) );
-
 			$stock_alert_opt = get_option( $this->option_stock_alert, array() );
 
 			$users = array();
-			if ( ! empty( $user_query->results ) ) {
-				foreach ( $user_query->results as $user ) {
-					$email  = '';
-					$enable = true;
-					if ( array_key_exists( $user->ID, $stock_alert_opt ) ) {
-						$email  = $stock_alert_opt[ $user->ID ]['email'];
-						$enable = $stock_alert_opt[ $user->ID ]['enable'];
-					} else {
-						$email = $user->user_email;
-					}
-					if ( $enable ) {
-						$users[] = array( 'email' => $email, 'user_id' => $user->ID, 'is_registered' => true );
+			$page  = 1;
+			do {
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- required by WP_User_Query to find users who wishlisted this product.
+				$user_query = new WP_User_Query( array(
+					'fields'     => array( 'ID', 'user_email' ),
+					'number'     => 500,
+					'paged'      => $page,
+					'meta_key'   => Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM,
+					'meta_value' => $product_id,
+				) );
+
+				if ( ! empty( $user_query->results ) ) {
+					foreach ( $user_query->results as $user ) {
+						$email  = '';
+						$enable = true;
+						if ( array_key_exists( $user->ID, $stock_alert_opt ) ) {
+							$email  = $stock_alert_opt[ $user->ID ]['email'];
+							$enable = $stock_alert_opt[ $user->ID ]['enable'];
+						} else {
+							$email = $user->user_email;
+						}
+						if ( $enable ) {
+							$users[] = array( 'email' => $email, 'user_id' => $user->ID, 'is_registered' => true );
+						}
 					}
 				}
-			}
+				$page++;
+			} while ( ! empty( $user_query->results ) && 500 === count( $user_query->results ) );
 
 			return $users;
 		}
@@ -260,13 +276,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 		/**
 		 * Adds stock alert on wish list template.
 		 *
-		 * @version 3.2.4
+		 * @version 3.4.7
 		 * @since   1.3.2
 		 */
 		public function add_stock_alert_on_template() {
-			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) : '';
-			$queried_user_id           = ! empty( $user_id_from_query_string ) ? Alg_WC_Wish_List_Query_Vars::crypt_user( $user_id_from_query_string, 'd' ) : null;
-			$queried_user_id           = empty( $queried_user_id ) ? $user_id_from_query_string : $queried_user_id;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only query var used to identify a shared wishlist view, no data mutation.
+			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ) : '';
+			$shared_user               = Alg_WC_Wish_List_Query_Vars::parse_shared_user_id( $user_id_from_query_string );
+			$queried_user_id           = $shared_user['user_id'] ? $shared_user['user_id'] : $shared_user['guest_id'];
 
 			// Doesn't show if queried user id is the user itself
 			if ( $queried_user_id && Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id() != $queried_user_id ) {
@@ -306,6 +323,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Stock_Manager' ) ) {
 			}
 
 			/*wc_get_template( 'alg_wcwl_stock_alert.php', $args );*/
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted template HTML rendered by plugin/theme template loader.
 			echo alg_wc_wl_locate_template( 'alg_wcwl_stock_alert.php', $args );
 
 		}

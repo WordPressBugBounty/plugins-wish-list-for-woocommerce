@@ -1,9 +1,9 @@
-=== Wishlist for WooCommerce: Multi Wishlists Per Customer  ===
+=== Wishlist for WooCommerce: Multiple Wishlists per Customer Pro  ===
 Contributors: wpcodefactory, omardabbas, karzin, anbinder, kousikmukherjeeli
 Tags: woocommerce, wishlist, woocommerce wishlist, add to wishlist, product wishlist
 Requires at least: 6.1
-Tested up to: 6.9
-Stable tag: 3.4.3
+Tested up to: 7.1
+Stable tag: 3.5.4
 Requires PHP: 5.6.0
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
@@ -258,10 +258,90 @@ Once activated, access the plugin's settings by navigating to “WooCommerce > S
 
 == Changelog ==
 
+= 3.5.4 - 10/09/2026 =
+* Fix - Wishlist counter shortcode no longer counts drafted, trashed or deleted products on the first page render, as excluded items are now ignored by default.
+
+= 3.5.3 - 09/09/2026 =
+* Fix - Fatal error on the frontend after upgrading to 3.5.2, caused by an undefined constant in the frontend assets loading check.
+* Fix - Wishlist icon shortcode no longer counts drafted, trashed or deleted products on the first page render, as excluded items are now ignored by default.
+* Fix - Removed an orphaned development JS chunk from the package.
+
+= 3.5.2 - 07/09/2026 =
+* Dev - Core refactoring.
+* Added a new option to enable/disable the wishlist display on the admin user profile page.
+* Fix - Admin profile wishlist tabs now display their correct content.
+* Fix - Admin profile wishlist no longer shows the "empty wishlist" text when it has items.
+* Fix - Wishlist data is now sanitized, avoiding PHP warnings and broken lists from corrupted stored values.
+* Fix - Security - Improved escaping.
+* Tested up to: 7.1.
+* WC tested up to: 11.1.
+
+= 3.5.1 - 02/09/2026 =
+* Fix - Wishlist counter no longer counts drafted, trashed or deleted products.
+* Fix - My Account wishlist tab now renders the full wishlist markup (forms, inputs and styles) instead of stripping it with wp_kses_post.
+* Fix - Compatibility - The TI Wishlist replacement shortcode now outputs the toggle button markup unfiltered.
+* Fix - Drag and Drop - Now enqueues the jQuery UI Touch Punch library bundled in WordPress core.
+* Fix - Note Field wasn not being saved properly.
+* Dev - Added "Frontend assets" section with a loading mode (All pages, Smart or Manual) plus "Pages" and "Conditionals" options, so users can choose exactly where the frontend scripts and styles are loaded, e.g. when the wishlist icon or buttons are rendered by a page builder or placed in the theme header.
+* Dev - Documented the `alg_wc_wl_should_enqueue_frontend_assets` filter (added in 3.4.9) as a supported API for controlling when frontend assets are loaded.
+* Dev - Moved the stock alert styles from the template to the frontend stylesheet.
+* Dev - Updated Key Manager library to version 1.1.1.
+* Dev - Updated Admin Menu library to version 1.1.2.
+* Dev - Updated Cross-Selling library to version 1.1.4.
+* Dev - Updated Promoting Notice library to version 1.0.7.
+* Dev - Core refactoring.
+
+= 3.5.0 - 26/08/2026 =
+* Dev - Font Awesome - Added source option to load from the bundled local copy, a fixed CDN version (6.4.2), or the latest 6.x version from the CDN. Removed the custom URL option.
+* Fix - Various bug fixes and code improvements.
+* Fix - Security - Security improvements and hardening.
+
+= 3.4.9 - 26/08/2026 =
+* Fix - Frontend assets now load on all pages when the wishlist nav menu icon is enabled.
+* Fix - "Remove all" button now honours the configured toggle events.
+
+= 3.4.8 - 24/08/2026 =
+* Dev - Core refactoring.
+
+= 3.4.7 - 24/08/2026 =
+* Fix - Added security param on counter module.
+* Fix - Improved chunkFilename.
+* Fix - Security - Hardened share link tokens and guest wishlist identifiers.
+* Fix - Performance - Frontend assets now load only on relevant pages.
+* Fix - Performance - Avoided unnecessary trashed-product queries and limited stock-alert user lookups.
+* Fix - Admin - Bundled Bootstrap locally instead of loading from a CDN.
+* Fix - Email Sharing - Prevented mail relay abuse: login required by default, 5-recipient cap and send delay between emails.
+* Fix - Email Sharing - Fixed message rendering and removed wishlist tab name from emails.
+* Fix - Security - Hardened wishlist item toggle validation, link validation, and guest write access.
+* Fix - Wishlist Page - Hidden wishlist tabs when viewing a shared wishlist.
+* Fix - Security - Admin wishlist clearing now requires proper capability.
+* Dev - Advanced - Changed Javascript toggle events to "click" by default.
+* Dev - Email Sharing - Added "Login required" and "Send delay" options.
+* Dev - Added option to load Font Awesome locally (bundled) instead of from a CDN.
+* Dev - Code cleanup and performance improvements.
+* Dev - Code refactoring.
+* WC tested up to: 11.0.
+
+= 3.4.6 - 24/07/2026 =
+* Fix - Fixed merge problem.
+
+= 3.4.5 - 24/07/2026 =
+* Fix - Security issues fixed.
+* Fix - Fixed empty message after unlogged user removes item from wish list.
+* Fix - Fixed a bug where logged-out users could see other users' wishlists in some cases.
+* Dev - Removed unnecessary toggle item nonce.
+* WC tested up to: 10.9.
+
+= 3.4.4 - 01/06/2026 =
+* Tested up to: 7.0.
+* WC tested up to: 10.7.
+* Fix - Fixed wishlist item quantity not persisting on non-default wishlist tabs.
+
 = 3.4.3 - 31/03/2026 =
 * Fix - Fixed unauthorized wishlist access vulnerability.
 * Fix - Fixed XSS vulnerability in wishlist template files.
 * Fix - Fixed SQL injection vulnerability in wishlist users report ordering.
+* Fix - Fixed quantity not persisting per tab in multiple wishlists.
 
 = 3.4.2 - 17/03/2026 =
 * Fix - Fixed UTF-8 encoding issues in `add_to_cart_link` button text.

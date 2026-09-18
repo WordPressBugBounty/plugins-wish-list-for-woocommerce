@@ -1,8 +1,8 @@
 <?php
 /**
- * Wish List for WooCommerce Pro - Note Field.
+ * Wishlist for WooCommerce - Note Field.
  *
- * @version 2.1.4
+ * @version 3.5.1
  * @since   1.7.4
  * @author  WPFactory.
  */
@@ -17,7 +17,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 		/**
 		 * init.
 		 *
-		 * @version 1.7.4
+		 * @version 3.4.7
 		 * @since   1.7.4
 		 *
 		 * @return void
@@ -26,7 +26,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 			add_filter( 'alg_wc_wl_locate_template_params', array( $this, 'override_wishlist_params' ), 11, 3 );
 			add_action( 'wp_ajax_' . 'alg_wc_wl_save_note', array( $this, 'save_note_ajax' ) );
 			add_action( 'wp_ajax_nopriv_' . 'alg_wc_wl_save_note', array( $this, 'save_note_ajax' ) );
-			add_filter( 'wp_footer', array( $this, 'save_note_js' ), 99 );
+			add_action( 'wp_footer', array( $this, 'save_note_js' ), 99 );
 		}
 
 		/**
@@ -65,9 +65,9 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 						let prodId = event.target.getAttribute( 'data-item_id' );
 						let tabId = event.target.getAttribute( 'data-wtab_id' );
 						if ( prodId ) {
-							request.open( 'POST', '<?php echo admin_url( 'admin-ajax.php' ); ?>', true );
+							request.open( 'POST', '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', true );
 							request.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8' );
-							request.send( 'action=alg_wc_wl_save_note&note=' + note + '&security=' + '<?php echo wp_create_nonce( "alg-wc-wl-security-save-note" ); ?>' + '&prod_id=' + prodId + '&wltab_id=' + tabId );
+							request.send( 'action=alg_wc_wl_save_note&note=' + note + '&security=' + '<?php echo esc_js( wp_create_nonce( 'alg-wc-wl-security-save-note' ) ); ?>' + '&prod_id=' + prodId + '&wltab_id=' + tabId );
 						}
 					} );
 				} )
@@ -92,7 +92,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 		/**
 		 * get_field_output.
 		 *
-		 * @version 3.1.8
+		 * @version 3.5.1
 		 * @since   1.7.4
 		 *
 		 * @param $product
@@ -101,14 +101,16 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 		 * @return array|string|string[]
 		 */
 		function get_field_output( $product, $params = null ) {
-			$tab_id = '-99';
+			$tab_id = '0';
 
 			$item_id            = $product->get_id();
 			$product_attributes = isset( $params['product_attributes'] ) ? $params['product_attributes'] : false;
 			$item_value         = isset( $product_attributes[ $product->get_id() ] ) && isset( $product_attributes[ $product->get_id() ]['note'] ) ? esc_attr( $product_attributes[ $product->get_id() ]['note'] ) : '';
 
-			if ( isset( $_GET['wtab'] ) && $_GET['wtab'] > 0 ) {
-				$tab_id    = $_GET['wtab'];
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only tab identifier used to render output, no data is processed.
+			$wtab = isset( $_GET['wtab'] ) ? absint( wp_unslash( $_GET['wtab'] ) ) : 0;
+			if ( $wtab > 0 ) {
+				$tab_id    = $wtab;
 				$transient = Alg_WC_Wish_List_Transients::WISH_LIST_METAS_MULTIPLE_STORE;
 
 				if ( is_user_logged_in() ) {
@@ -189,9 +191,10 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 			// Conditions
 			if (
 				! isset( $_POST['note'] ) ||
-				strlen( $note = $sanitize_function( $_POST['note'] ) ) > $max_length ||
+				// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $sanitize_function is a variable holding 'sanitize_text_field' or 'sanitize_textarea_field', the static analyzer can't trace dynamic function calls.
+				strlen( $note = $sanitize_function( wp_unslash( $_POST['note'] ) ) ) > $max_length ||
 				! isset( $_POST['prod_id'] ) ||
-				empty( $prod_id = intval( $_POST['prod_id'] ) )
+				empty( $prod_id = intval( wp_unslash( $_POST['prod_id'] ) ) )
 			) {
 				die();
 			}
@@ -231,7 +234,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 		/**
 		 * add_note_input.
 		 *
-		 * @version 1.7.4
+		 * @version 3.4.7
 		 * @since   1.7.4
 		 *
 		 * @param $params
@@ -245,9 +248,10 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Note_Field' ) ) {
 			if ( 'no' === get_option( Alg_WC_Wish_List_Settings_List::OPTION_NOTE_FIELD, 'no' ) ) {
 				return $params;
 			}
-			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) : '';
-			$queried_user_id           = ! empty( $user_id_from_query_string ) ? Alg_WC_Wish_List_Query_Vars::crypt_user( $user_id_from_query_string, 'd' ) : null;
-			$queried_user_id           = empty( $queried_user_id ) ? $user_id_from_query_string : $queried_user_id;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only query var used to identify a shared wishlist view, no data mutation.
+			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ) : '';
+			$shared_user               = Alg_WC_Wish_List_Query_Vars::parse_shared_user_id( $user_id_from_query_string );
+			$queried_user_id           = $shared_user['user_id'] ? $shared_user['user_id'] : $shared_user['guest_id'];
 
 			// Doesn't show if queried user id is the user itself
 			if ( $queried_user_id && Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id() != $queried_user_id ) {

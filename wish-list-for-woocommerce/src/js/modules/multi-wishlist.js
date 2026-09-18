@@ -14,15 +14,11 @@ var multiWishlist = {
 		algwcwishlistmodalCreate: '.js-algwcwishlistmodal-btn-create',
 		algwcwishlistmodalSaveWishlist: '.js-algwcwishlistmodal-btn-save-wishlist',
 		algwcwishlistmodalSave: '.js-algwcwishlistmodal-btn-save',
-		algwcwishlistmodalSaveCopy: '.js-algwcwishlistmodal-btn-save-copy',
 		algwcwishlistmodalCancel: '.js-algwcwishlistmodal-btn-cancel',
-		algwcwishlistmodalCancelCopy: '.js-algwcwishlistmodal-btn-cancel-copy',
 		algwcwishlistmodalForm: '.create-wishlist-form',
-		algwcwishlistmodalFormCopy: '.copy-wishlist-form',
 		algwcwishlistmodalSelect: '.select-wishlist',
 		algwcwishlistContainer: '.algwc-wishlist-collections-wrapper',
-		algwcwishlistDeleteWishlist: '.delete-customized-wishlist',
-		algwcwishlistCopyWishlist: '.copy-wishlist'
+		algwcwishlistDeleteWishlist: '.delete-customized-wishlist'
 	},
 
 	init: function ( options ) {
@@ -135,38 +131,6 @@ var multiWishlist = {
 			} );
 		} );
 
-		// Copy wishlist (open modal)
-		$( document ).on( 'click', settings.algwcwishlistCopyWishlist, function () {
-
-			self.openModal();
-			self.hideSelect();
-			self.hideForm();
-			self.showFormCopy();
-
-			var title = $( this ).data( 'wishlist_tab_title' );
-			var tabid = $( this ).data( 'wishlist_tab_id' );
-
-			$( "#duplicate_wishlist_name" ).val( title + ' (Copy)' );
-			$( "#wishlist_tab_id" ).val( tabid );
-		} );
-
-		// Cancel copy
-		$( document ).on( 'click', settings.algwcwishlistmodalCancelCopy, function () {
-			self.closeModal();
-			$( "#duplicate_wishlist_name" ).val( '' );
-		} );
-
-		// Save copy
-		$( document ).on( 'click', settings.algwcwishlistmodalSaveCopy, function () {
-			var data = self.getDuplicateWishlistData();
-
-			$.post( alg_wc_wl.ajaxurl, data, function ( response ) {
-				if ( response.success ) {
-					location.reload();
-				}
-			} );
-		} );
-
 		// Prevent modal click propagation
 		$( document ).on( 'click', settings.algwcwishlistmodal, function ( event ) {
 			event.stopPropagation();
@@ -180,7 +144,7 @@ var multiWishlist = {
 	getSaveWishlistData: function () {
 		return {
 			action: alg_wc_wl_ajax.action_save_wishlist,
-			nonce: alg_wc_wl_ajax.toggle_nonce,
+			security: alg_wc_wl_ajax.nonce,
 			value: $( "input#wishlist_name" ).val()
 		};
 	},
@@ -194,18 +158,9 @@ var multiWishlist = {
 
 		return {
 			action: alg_wc_wl_ajax.action_save_multiple_wishlist,
-			nonce: alg_wc_wl_ajax.toggle_nonce,
+			security: alg_wc_wl_ajax.nonce,
 			value: arr,
 			item_id: $( "#wishlist_form_product_id" ).val()
-		};
-	},
-
-	getDuplicateWishlistData: function () {
-		return {
-			action: alg_wc_wl_ajax.action_duplicate_wishlist,
-			nonce: alg_wc_wl_ajax.toggle_nonce,
-			value_tab_id: $( "#wishlist_tab_id" ).val(),
-			value: $( "#duplicate_wishlist_name" ).val()
 		};
 	},
 
@@ -214,7 +169,7 @@ var multiWishlist = {
 
 		return {
 			action: alg_wc_wl_ajax.action_delete_multiple_wishlist,
-			nonce: alg_wc_wl_ajax.toggle_nonce,
+			security: alg_wc_wl_ajax.nonce,
 			wishlist_tab_id: el.data( 'wishlist_tab_id' ),
 			wishlist_page_id: el.data( 'page' )
 		};
@@ -232,7 +187,7 @@ var multiWishlist = {
 
 		$.post( alg_wc_wl.ajaxurl, {
 			action: alg_wc_wl_ajax.action_get_multiple_wishlist,
-			nonce: alg_wc_wl_ajax.toggle_nonce,
+			security: alg_wc_wl_ajax.nonce,
 			item_id: $( "#wishlist_form_product_id" ).val()
 		}, function ( response ) {
 			if ( response.success ) {
@@ -279,14 +234,6 @@ var multiWishlist = {
 
 	hideForm: function () {
 		$( this.settings.algwcwishlistmodalForm ).addClass( 'is-hidden' );
-	},
-
-	showFormCopy: function () {
-		$( this.settings.algwcwishlistmodalFormCopy ).removeClass( 'is-hidden' );
-	},
-
-	hideFormCopy: function () {
-		$( this.settings.algwcwishlistmodalFormCopy ).addClass( 'is-hidden' );
 	},
 
 	openModal: function () {

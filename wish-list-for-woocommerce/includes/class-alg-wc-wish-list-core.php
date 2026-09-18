@@ -2,7 +2,7 @@
 /**
  * Wish List for WooCommerce - Core Class.
  *
- * @version 3.3.9
+ * @version 3.5.3
  * @since   1.0.0
  * @author  WPFactory.
  */
@@ -21,7 +21,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		 * @since 1.0.0
 		 * @var   string
 		 */
-		public $version = '3.4.3';
+		public $version = '3.5.4';
 
 		/**
 		 * @since 1.0.0
@@ -53,7 +53,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		}
 
 		/**
-		 * @var Alg_WC_Wish_List_Pro_Stock_Bkg_Process
+		 * @var Alg_WC_Wish_List_Stock_Bkg_Process
 		 */
 		public static $bkg_process;
 
@@ -112,26 +112,29 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		public static function delete_meta_data() {
 			global $wpdb;
 			$meta_prefix = 'alg_wc_wl';
+			$like        = '%' . $wpdb->esc_like( $meta_prefix ) . '%';
 
 			// Remove user meta
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-time cleanup on uninstall, no caching needed.
 			$wpdb->query(
 				$wpdb->prepare(
 					"
 					DELETE FROM $wpdb->usermeta
-					WHERE meta_key like '%%%s%%'
+					WHERE meta_key LIKE %s
 					",
-					$meta_prefix
+					$like
 				)
 			);
 
 			// Remove options
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-time cleanup on uninstall, no caching needed.
 			$wpdb->query(
 				$wpdb->prepare(
 					"
 					DELETE FROM $wpdb->options
-					WHERE option_name like '%%%s%%'
+					WHERE option_name LIKE %s
 					",
-					$meta_prefix
+					$like
 				)
 			);
 		}
@@ -139,7 +142,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Constructor.
 		 *
-		 * @version 3.2.9
+		 * @version 3.5.1
 		 * @since   1.0.0
 		 */
 		function __construct() {
@@ -235,23 +238,13 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 				add_filter( 'alg_wc_wl_fa_icon_class', array( $this, 'get_font_awesome_icon_class' ), 9, 2 );
 
 				// Responsive script.
-				add_filter( 'wp_footer', array( $this, 'handle_responsive_script' ), 9, 2 );
+				add_action( 'wp_footer', array( $this, 'handle_responsive_script' ), 9, 2 );
 
 				// Adds variable product data to response text.
 				add_filter( 'alg_wc_wl_toggle_item_texts', array( 'Alg_WC_Wish_List_Ajax', 'add_variable_product_data_to_response_text' ) );
 
-				// Filters button position on single page.
-				$option_name = Alg_WC_Wish_List_Settings_Buttons::OPTION_DEFAULT_BTN_SINGLE_POSITION;
-				add_filter( "option_{$option_name}", array( $this, 'override_button_position_single' ) );
-
 				// Nav menu item.
 				add_filter( 'wp_get_nav_menu_items', array( $this, 'handle_nav_menu_item' ), 10, 3 );
-
-				// Hide default btn.
-				add_filter( 'alg_wc_wl_show_default_btn', array( $this, 'hide_default_btn' ), 10, 2 );
-
-				// Hide thumb btn.
-				add_filter( 'alg_wc_wl_show_thumb_btn', array( $this, 'hide_thumb_btn' ), 10, 2 );
 
 				// Disallow wish listing while unlogged.
 				add_filter( 'alg_wc_wl_toggle_item_response', array( 'Alg_WC_Wish_List_Ajax', 'handle_unlogged_users_response' ) );
@@ -266,9 +259,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 				$shortcodes = new Alg_WC_Wish_List_Shortcodes();
 				$shortcodes->set_report_class( $this->report );
 				$shortcodes->init();
-
-				// JS Updater Events.
-				add_action( 'wp_footer', array( $this, 'enable_js_updater_events' ) );
 
 				// Block products grid.
 				add_filter( 'woocommerce_blocks_product_grid_item_html', array( $this, 'change_render_product' ), 10, 3 );
@@ -294,6 +284,9 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 				// Subtotal.
 				$subtotal = new Alg_WC_Wish_List_Subtotal();
 				$subtotal->init();
+
+				// Quantity.
+				new Alg_WC_Wish_List_Quantity();
 
 				// Variable products.
 				$variable_products = new Alg_WC_Wish_List_Variable_Products();
@@ -384,14 +377,15 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Shows a error message after cleared message
 		 *
-		 * @version 3.0.8
+		 * @version 3.4.5
 		 * @since   3.0.8
 		 */
 		function clear_wishlist_admin_notice() {
-			if ( isset( $_GET['cleared'] ) && $_GET['cleared'] == '1' ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only UI flag, no data is processed or mutated.
+			if ( isset( $_GET['cleared'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['cleared'] ) ) ) {
 				?>
 				<div class="notice is-dismissible updated">
-					<p><?php _e( 'Wishlist cleared.' ); ?></p>
+					<p><?php esc_html_e( 'Wishlist cleared.', 'wish-list-for-woocommerce' ); ?></p>
 				</div>
 				<?php
 			}
@@ -483,42 +477,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		}
 
 		/**
-		 * Forces the Wish List to display based on Javascript events.
-		 *
-		 * @version 1.7.2
-		 * @since   1.7.2
-		 */
-		function enable_js_updater_events() {
-			if ( 'yes' !== get_option( Alg_WC_Wish_List_Settings_Advanced::OPTION_WISH_LIST_UPDATER_EVENTS_ENABLE, 'no' ) ) {
-				return;
-			}
-			$events = explode( "\n", str_replace( "\r", "", get_option( Alg_WC_Wish_List_Settings_Advanced::OPTION_WISH_LIST_UPDATER_EVENTS, Alg_WC_Wish_List_Settings_Advanced::get_updater_events_default() ) ) );
-			$events = array_map( 'sanitize_text_field', $events );
-			?>
-			<script>
-				jQuery( document ).on( '<?php echo implode( " ", $events ); ?>', function () {
-					jQuery( '.alg-wc-wl-btn' ).addClass( 'ajax-loading' );
-					var alg_wc_wl_show = function () {
-						jQuery( '.alg-wc-wl-btn.ajax-loading' ).removeClass( 'ajax-loading' );
-					}
-					var alg_wc_wl_position = function () {
-						if ( typeof alg_wc_wl_thumb_btn_positioner === 'undefined' || jQuery.isEmptyObject( alg_wc_wl_thumb_btn_positioner ) ) {
-							jQuery( 'body' ).on( 'alg_wc_wl_thumb_btn_positioner', function ( e ) {
-								alg_wc_wl_thumb_btn_positioner = e.obj;
-								alg_wc_wl_thumb_btn_positioner.init();
-							} );
-						} else {
-							alg_wc_wl_thumb_btn_positioner.init();
-						}
-						setTimeout( alg_wc_wl_show, 200 );
-					};
-					setTimeout( alg_wc_wl_position, 500 );
-				} )
-			</script>
-			<?php
-		}
-
-		/**
 		 * disable_buttons_to_unlogged_users.
 		 *
 		 * @version 1.7.1
@@ -537,48 +495,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 			}
 
 			return $enabled;
-		}
-
-		/**
-		 * hide_thumb_btn.
-		 *
-		 * @version 1.6.2
-		 * @since   1.6.2
-		 *
-		 * @param $show
-		 * @param $product_id
-		 *
-		 * @return bool
-		 */
-		function hide_thumb_btn( $show, $product_id ) {
-			if ( ! empty( $hidden_tags = get_option( Alg_WC_Wish_List_Settings_Buttons::OPTION_THUMB_BTN_HIDE_BY_TAG, array() ) ) ) {
-				if ( has_term( $hidden_tags, 'product_tag', $product_id ) ) {
-					$show = false;
-				}
-			}
-
-			return $show;
-		}
-
-		/**
-		 * hide_default_btn.
-		 *
-		 * @version 1.6.2
-		 * @since   1.6.2
-		 *
-		 * @param $show
-		 * @param $product_id
-		 *
-		 * @return bool
-		 */
-		function hide_default_btn( $show, $product_id ) {
-			if ( ! empty( $hidden_tags = get_option( Alg_WC_Wish_List_Settings_Buttons::OPTION_DEFAULT_BTN_HIDE_BY_TAG, array() ) ) ) {
-				if ( has_term( $hidden_tags, 'product_tag', $product_id ) ) {
-					$show = false;
-				}
-			}
-
-			return $show;
 		}
 
 		/**
@@ -606,26 +522,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 			}
 
 			return $items;
-		}
-
-		/**
-		 * Overrides button position on single product page
-		 *
-		 * @version 3.2.5
-		 * @since   1.5.0
-		 *
-		 * @param $position
-		 *
-		 * @return mixed
-		 */
-		public function override_button_position_single( $position ) {
-			$option_name = Alg_WC_Wish_List_Settings_Buttons::OPTION_DEFAULT_BTN_SINGLE_POSITION_OVERRIDE;
-			$option      = get_option( $option_name, '' );
-			if ( ! empty( $option ) ) {
-				$position = $option;
-			}
-
-			return $position;
 		}
 
 		/**
@@ -681,14 +577,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Handles Localization.
 		 *
-		 * Tries to load from 'wp-content/languages/plugins/wish-list-for-woocommerce-pt_BR.mo' first.
-		 * If it's not possible, tries to load from "wp-content/plugins/wish-list-for-woocommerce-pro/languages/wish-list-for-woocommerce-pt_BR.mo'
+		 * Loads the plugin translations from the plugin's own languages folder.
 		 *
-		 * @version 2.3.7
+		 * @version 3.5.1
 		 * @since   1.0.0
 		 */
 		public function handle_localization() {
 			$domain = 'wish-list-for-woocommerce';
+			// phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound -- Translations are loaded manually from the plugin's languages folder.
 			load_plugin_textdomain( $domain, false, dirname( ALG_WC_WL_BASENAME ) . '/langs/' );
 		}
 
@@ -740,7 +636,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Handle Ajax
 		 *
-		 * @version 1.3.0
+		 * @version 3.4.7
 		 * @since   1.2.8
 		 */
 		private function handle_ajax() {
@@ -786,13 +682,8 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 
 			// clear wishlist
 			$action = Alg_WC_Wish_List_Ajax::ACTION_GET_CLEAR_WISHLIST_ADMIN;
-			add_action( "wp_ajax_nopriv_{$action}", array( Alg_WC_Wish_List_Ajax::get_class_name(), 'admin_clear_wishlist' ) );
 			add_action( "wp_ajax_{$action}", array( Alg_WC_Wish_List_Ajax::get_class_name(), 'admin_clear_wishlist' ) );
 
-			// Save Duplicate wishlist
-			$action = Alg_WC_Wish_List_Ajax::ACTION_DUPLICATE_WISHLIST;
-			add_action( "wp_ajax_nopriv_{$action}", array( Alg_WC_Wish_List_Ajax::get_class_name(), 'save_duplicate_wishlist' ) );
-			add_action( "wp_ajax_{$action}", array( Alg_WC_Wish_List_Ajax::get_class_name(), 'save_duplicate_wishlist' ) );
 		}
 
 		/**
@@ -841,10 +732,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Load scripts and styles
 		 *
-		 * @version 3.2.5
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		function enqueue_frontend_scripts() {
+			if ( ! $this->should_enqueue_frontend_assets() ) {
+				return;
+			}
+
 			$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
 			// Balloon-css
@@ -867,15 +762,23 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Replaces some strings based on admin settings when an item is removed or added to wish list
 		 *
-		 * @version 3.2.5
+		 * @version 3.5.1
 		 * @since   1.0.0
 		 */
 		public function override_toggle_item_texts( $params ) {
-			$params['added']         = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST, __( '%s was successfully added to wishlist', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
-			$params['saved']         = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST_MULTIPLE, __( 'Wishlist successfully saved.', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
-			$params['removed']       = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_REMOVED_FROM_WISH_LIST, __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
-			$params['error']         = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ERROR, __( 'Sorry, Some error ocurred. Please, try again later.', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
-			$params['see_wish_list'] = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_SEE_YOUR_WISH_LIST, __( 'See your wishlist', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
+			/* translators: %s: product title */
+			$added_default              = __( '%s was successfully added to wishlist', 'wish-list-for-woocommerce' );
+			$saved_default              = __( 'Wishlist successfully saved.', 'wish-list-for-woocommerce' );
+			/* translators: %s: product title */
+			$removed_default            = __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' );
+			$error_default              = __( 'Sorry, Some error ocurred. Please, try again later.', 'wish-list-for-woocommerce' );
+			$see_wish_list_default      = __( 'See your wishlist', 'wish-list-for-woocommerce' );
+
+			$params['added']         = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST, $added_default ) );
+			$params['saved']         = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST_MULTIPLE, $saved_default ) );
+			$params['removed']       = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_REMOVED_FROM_WISH_LIST, $removed_default ) );
+			$params['error']         = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ERROR, $error_default ) );
+			$params['see_wish_list'] = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_SEE_YOUR_WISH_LIST, $see_wish_list_default ) );
 
 			return $params;
 		}
@@ -883,12 +786,13 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Enqueue admin scripts
 		 *
-		 * @version 3.3.7
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		function enqueue_admin_scripts( $hook ) {
-
-			if ( $hook != 'woocommerce_page_wc-settings' || ! isset( $_GET['tab'] ) || $_GET['tab'] != 'alg_wc_wish_list' ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only check of current admin screen, no data is processed.
+			$tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : '';
+			if ( 'woocommerce_page_wc-settings' !== $hook || 'alg_wc_wish_list' !== $tab ) {
 				return;
 			}
 			?>
@@ -900,32 +804,33 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 			</style>
 			<?php
 
-			if ( $hook === 'woocommerce_page_wc-settings' && $_GET['tab'] === 'alg_wc_wish_list' ) {
+			if ( 'woocommerce_page_wc-settings' === $hook && 'alg_wc_wish_list' === $tab ) {
 				$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
 				// Font awesome.
 				if ( ! wp_script_is( 'alg-font-awesome' ) ) {
-					$css_file = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME_URL, 'https//use.fontawesome.com/releases/v5.5.0/css/all.css' );
-					wp_register_style( 'alg-font-awesome', $css_file, array() );
+					$css_file = $this->get_font_awesome_css_url();
+					wp_register_style( 'alg-font-awesome', $css_file, array(), $this->version );
 					wp_enqueue_style( 'alg-font-awesome' );
 				}
 
-				// Bootstrap.
-				wp_enqueue_script( 'alg-wc-wl-bootstrap', '//netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js' );
+				// Bootstrap (bundled locally).
+				wp_register_script( 'alg-wc-wl-bootstrap', ALG_WC_WL_URL . 'assets/vendor/bootstrap/js/bootstrap.min.js', array( 'jquery' ), '3.3.7', true );
+				wp_enqueue_script( 'alg-wc-wl-bootstrap' );
 
 				// Fontawesome icon picker.
 				$css_file = 'assets/vendor/fontawesome-iconpicker/css/fontawesome-iconpicker.min.css';
-				$css_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
+				$css_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
 				wp_register_style( 'alg-wc-wl-fa-iconpicker', ALG_WC_WL_URL . $css_file, array(), $css_ver );
 				wp_enqueue_style( 'alg-wc-wl-fa-iconpicker' );
 				$js_file = 'assets/vendor/fontawesome-iconpicker/js/fontawesome-iconpicker.min.js';
-				$js_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
+				$js_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
 				wp_register_script( 'alg-wc-wl-fa-iconpicker', ALG_WC_WL_URL . $js_file, array( 'jquery' ), $js_ver, true );
 				wp_enqueue_script( 'alg-wc-wl-fa-iconpicker' );
 
 				// Color picker Alpha.
 				$js_file = 'assets/vendor/color-picker-alpha/wp-color-picker-alpha.min.js';
-				$js_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
+				$js_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
 				wp_enqueue_style( 'wp-color-picker' );
 				wp_enqueue_script( 'wp-color-picker-alpha', ALG_WC_WL_URL . $js_file, array( 'wp-color-picker' ), $js_ver, true );
 				wp_add_inline_script(
@@ -935,7 +840,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 
 				// Main js file for admin.
 				$js_file = 'assets/js/admin' . $suffix . '.js';
-				$js_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
+				$js_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
 				wp_register_script( 'alg-wc-wl-admin', ALG_WC_WL_URL . $js_file, array( 'jquery', 'alg-wc-wl-fa-iconpicker' ), $js_ver, true );
 				wp_enqueue_script( 'alg-wc-wl-admin' );
 
@@ -947,7 +852,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 
 				// Main css file.
 				$css_file = 'assets/css/admin' . $suffix . '.css';
-				$css_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
+				$css_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
 				wp_register_style( 'alg-wc-wish-list-admin-style', ALG_WC_WL_URL . $css_file, array(), $css_ver );
 				wp_enqueue_style( 'alg-wc-wish-list-admin-style' );
 			}
@@ -1041,10 +946,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Generate custom style.
 		 *
-		 * @version 3.3.7
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		public function enqueue_frontend_custom_style() {
+			if ( ! $this->should_enqueue_frontend_assets() ) {
+				return;
+			}
+
 			$custom_css              = '';
 			$custom_notification_css = '';
 
@@ -1110,7 +1019,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * get_multiwishlist_custom_style.
 		 *
-		 * @version 3.3.7
+		 * @version 3.5.0
 		 * @since   3.3.7
 		 *
 		 * @return string
@@ -1122,26 +1031,26 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 				true === filter_var( get_option( Alg_WC_Wish_List_Settings_Style::OPTION_STYLE_ENABLE, 'no' ), FILTER_VALIDATE_BOOLEAN ) &&
 				'yes' === get_option( 'alg_wc_wl_multiple_wishlist_enabled', 'no' )
 			) {
-				$alg_wc_wl_style_wish_list_multiple_tab_font_color        = get_option( 'alg_wc_wl_style_wish_list_multiple_tab_font_color', '#000' );
-				$alg_wc_wl_style_wish_list_multiple_tab_bg_color          = get_option( 'alg_wc_wl_style_wish_list_multiple_tab_bg_color', '#eeeeee' );
-				$alg_wc_wl_style_wish_list_multiple_tab_active_font_color = get_option( 'alg_wc_wl_style_wish_list_multiple_tab_active_font_color', '#000' );
-				$alg_wc_wl_style_wish_list_multiple_tab_separator_color   = get_option( 'alg_wc_wl_style_wish_list_multiple_tab_separator_color', '#cccccc' );
-				$alg_wc_wl_style_wish_list_multiple_tab_active_bg_color   = get_option( 'alg_wc_wl_style_wish_list_multiple_tab_active_bg_color', '#ffffff' );
+				$alg_wc_wl_style_wish_list_multiple_tab_font_color        = Alg_WC_Wish_List_CSS_Sanitizer::color( get_option( 'alg_wc_wl_style_wish_list_multiple_tab_font_color', '#000' ), '#000' );
+				$alg_wc_wl_style_wish_list_multiple_tab_bg_color          = Alg_WC_Wish_List_CSS_Sanitizer::color( get_option( 'alg_wc_wl_style_wish_list_multiple_tab_bg_color', '#eeeeee' ), '#eeeeee' );
+				$alg_wc_wl_style_wish_list_multiple_tab_active_font_color = Alg_WC_Wish_List_CSS_Sanitizer::color( get_option( 'alg_wc_wl_style_wish_list_multiple_tab_active_font_color', '#000' ), '#000' );
+				$alg_wc_wl_style_wish_list_multiple_tab_separator_color   = Alg_WC_Wish_List_CSS_Sanitizer::color( get_option( 'alg_wc_wl_style_wish_list_multiple_tab_separator_color', '#cccccc' ), '#cccccc' );
+				$alg_wc_wl_style_wish_list_multiple_tab_active_bg_color   = Alg_WC_Wish_List_CSS_Sanitizer::color( get_option( 'alg_wc_wl_style_wish_list_multiple_tab_active_bg_color', '#ffffff' ), '#ffffff' );
 
 				$custom_css .= '
 				.alg-wc-wl-tablink {
-					background-color: ' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_bg_color ) . ';
-					color:' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_font_color ) . ':
+					background-color: ' . $alg_wc_wl_style_wish_list_multiple_tab_bg_color . ';
+					color:' . $alg_wc_wl_style_wish_list_multiple_tab_font_color . ';
 				}
 
 				.alg-wc-wl-tablink:hover, .alg-wc-wl-tablink.active {
-					color: ' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_active_font_color ) . ';
-					background-color: ' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_active_bg_color ) . ';
-					border-color: ' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_separator_color ) . ';
+					color: ' . $alg_wc_wl_style_wish_list_multiple_tab_active_font_color . ';
+					background-color: ' . $alg_wc_wl_style_wish_list_multiple_tab_active_bg_color . ';
+					border-color: ' . $alg_wc_wl_style_wish_list_multiple_tab_separator_color . ';
 				}
 
 				.alg-wc-wl-tablink,.alg-wc-wl-tab .col-20per:first-child .alg-wc-wl-tablink {
-					border-color: ' . esc_attr( $alg_wc_wl_style_wish_list_multiple_tab_separator_color ) . ';
+					border-color: ' . $alg_wc_wl_style_wish_list_multiple_tab_separator_color . ';
 				}
 				';
 			}
@@ -1241,7 +1150,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Show action links on the plugin screen
 		 *
-		 * @version 1.0.0
+		 * @version 3.5.1
 		 * @since   1.0.0
 		 *
 		 * @param   mixed  $links
@@ -1249,7 +1158,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		 * @return  array
 		 */
 		function action_links( $links ) {
-			$custom_links = array( '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=alg_wc_wish_list' ) . '">' . __( 'Settings', 'woocommerce' ) . '</a>' );
+			$custom_links = array( '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=alg_wc_wish_list' ) . '">' . __( 'Settings', 'wish-list-for-woocommerce' ) . '</a>' );
 
 			return array_merge( $custom_links, $links );
 		}
@@ -1351,13 +1260,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * Load social networks template ( Social )
 		 *
-		 * @version 3.2.5
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		public function handle_social() {
-			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) : '';
-			$queried_user_id           = ! empty( $user_id_from_query_string ) ? Alg_WC_Wish_List_Query_Vars::crypt_user( $user_id_from_query_string, 'd' ) : null;
-			$queried_user_id           = empty( $queried_user_id ) ? $user_id_from_query_string : $queried_user_id;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only query var used to identify a shared wishlist view, no data mutation.
+			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ) : '';
+			$shared_user               = Alg_WC_Wish_List_Query_Vars::parse_shared_user_id( $user_id_from_query_string );
+			$queried_user_id           = $shared_user['user_id'] ? $shared_user['user_id'] : $shared_user['guest_id'];
 
 			// Doesn't show if queried user id is the user itself
 			if ( $queried_user_id && Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id() != $queried_user_id ) {
@@ -1421,65 +1331,204 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 						'url'    => Alg_WC_Wish_List::get_url()
 					),
 				);
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted template HTML rendered by plugin/theme template loader.
 				echo alg_wc_wl_locate_template( 'share.php', $params );
 			}
 		}
 
 		/**
+		 * should_enqueue_frontend_assets.
+		 *
+		 * Loads frontend assets only on pages that can display wishlist content.
+		 *
+		 * Can be overridden with the `alg_wc_wl_should_enqueue_frontend_assets` filter.
+		 *
+		 * @version 3.5.3
+		 * @since   3.4.9
+		 *
+		 * @return bool
+		 */
+		private function should_enqueue_frontend_assets() {
+			$should_enqueue = false;
+
+			$mode = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FRONTEND_ASSETS_LOADING_MODE, 'smart' );
+
+			if ( 'all' === $mode ) {
+				$should_enqueue = true;
+			} elseif ( 'manual' === $mode ) {
+				// Selected pages.
+				$pages = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FRONTEND_ASSETS_PAGES, Alg_WC_Wish_List_Settings_General::get_default_frontend_assets_pages() );
+				if ( ! is_array( $pages ) ) {
+					$pages = array();
+				}
+				if ( ! empty( $pages ) && is_page( $pages ) ) {
+					$should_enqueue = true;
+				}
+
+				// Selected conditionals.
+				if ( ! $should_enqueue ) {
+					$conditionals = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FRONTEND_ASSETS_CONDITIONALS, Alg_WC_Wish_List_Settings_General::get_default_frontend_assets_conditionals() );
+					if ( ! is_array( $conditionals ) ) {
+						$conditionals = array();
+					}
+					foreach ( $conditionals as $conditional ) {
+						if ( $this->is_frontend_assets_conditional( $conditional ) ) {
+							$should_enqueue = true;
+							break;
+						}
+					}
+				}
+			} else {
+				// Smart mode (default): only when wishlist content can be rendered.
+				// The front page commonly displays product grids or a header icon, so it is always included.
+				if ( is_front_page() || is_woocommerce() || is_cart() || is_checkout() || is_account_page() ) {
+					$should_enqueue = true;
+				}
+
+				// The nav-menu wishlist icon renders on every page by design.
+				if ( ! $should_enqueue && 'yes' === get_option( Alg_WC_Wish_List_Settings_General::OPTION_WISH_LIST_NAV_MENU_ICON, 'no' ) ) {
+					$should_enqueue = true;
+				}
+
+				if ( ! $should_enqueue ) {
+					$post = get_post();
+					if ( $post instanceof WP_Post ) {
+						$shortcodes = array(
+							Alg_WC_Wish_List_Shortcodes::SHORTCODE_WISH_LIST,
+							Alg_WC_Wish_List_Shortcodes::SHORTCODE_WISH_LIST_COUNT,
+							Alg_WC_Wish_List_Shortcodes::SHORTCODE_WISH_LIST_REMOVE_ALL_BTN,
+							Alg_WC_Wish_List_Shortcodes::SHORTCODE_WISH_LIST_ICON,
+						);
+						foreach ( $shortcodes as $shortcode ) {
+							if ( has_shortcode( $post->post_content, $shortcode ) ) {
+								$should_enqueue = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			return apply_filters( 'alg_wc_wl_should_enqueue_frontend_assets', $should_enqueue );
+		}
+
+		/**
+		 * is_frontend_assets_conditional.
+		 *
+		 * Evaluates a conditional slug from the "Frontend assets" > "Conditionals" setting.
+		 *
+		 * @version 3.5.1
+		 * @since   3.5.1
+		 *
+		 * @param string $conditional Conditional slug.
+		 *
+		 * @return bool
+		 */
+		private function is_frontend_assets_conditional( $conditional ) {
+			switch ( $conditional ) {
+				case 'is_front_page':
+					return is_front_page();
+				case 'is_home':
+					return is_home();
+				case 'is_woocommerce':
+					return function_exists( 'is_woocommerce' ) && is_woocommerce();
+				case 'is_shop':
+					return function_exists( 'is_shop' ) && is_shop();
+				case 'is_product':
+					return function_exists( 'is_product' ) && is_product();
+				case 'is_product_category':
+					return function_exists( 'is_product_category' ) && is_product_category();
+				case 'is_product_tag':
+					return function_exists( 'is_product_tag' ) && is_product_tag();
+				case 'is_cart':
+					return function_exists( 'is_cart' ) && is_cart();
+				case 'is_checkout':
+					return function_exists( 'is_checkout' ) && is_checkout();
+				case 'is_account_page':
+					return function_exists( 'is_account_page' ) && is_account_page();
+				case 'is_page':
+					return is_page();
+				case 'is_singular':
+					return is_singular();
+				case 'is_archive':
+					return is_archive();
+				case 'is_search':
+					return is_search();
+				case 'is_404':
+					return is_404();
+			}
+
+			return false;
+		}
+
+		/**
 		 * Loads scripts and styles.
 		 *
-		 * @version 3.3.7
+		 * @version 3.5.0
 		 * @since   1.0.0
 		 */
 		function enqueue_scripts() {
+			if ( ! $this->should_enqueue_frontend_assets() ) {
+				return;
+			}
+
 			$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
 			// Main css file.
 			$css_file = 'assets/css/frontend' . $suffix . '.css';
-			$css_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
+			$css_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
 			wp_register_style( 'alg-wc-wish-list', ALG_WC_WL_URL . $css_file, array(), $css_ver );
 			wp_enqueue_style( 'alg-wc-wish-list' );
 
 			// Font awesome.
-			$this->fix_fontawesome_url_option();
-			$css_file         = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME_URL, 'https://use.fontawesome.com/releases/v6.4.2/css/all.css' );
+			$css_file         = $this->get_font_awesome_css_url();
 			$font_awesome_opt = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME, 'yes' );
 			if ( filter_var( $font_awesome_opt, FILTER_VALIDATE_BOOLEAN ) !== false ) {
 				if ( ! wp_script_is( 'alg-font-awesome' ) ) {
-					wp_register_style( 'alg-font-awesome', $css_file, array() );
+					wp_register_style( 'alg-font-awesome', $css_file, array(), $this->version );
 					wp_enqueue_style( 'alg-font-awesome' );
 				}
 			}
 
 			// Izitoast - A Notification plugin (http://izitoast.marcelodolce.com/)
 			$js_file = 'assets/vendor/izitoast/js/iziToast.min.js';
-			$js_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
+			$js_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
 			wp_register_script( 'alg-wc-wish-list-izitoast', ALG_WC_WL_URL . $js_file, array( 'jquery' ), $js_ver, true );
 			wp_enqueue_script( 'alg-wc-wish-list-izitoast' );
 			$css_file = 'assets/vendor/izitoast/css/iziToast.min.css';
-			$css_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
+			$css_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $css_file ) );
 			wp_register_style( 'alg-wc-wish-list-izitoast', ALG_WC_WL_URL . $css_file, array(), $css_ver );
 			wp_enqueue_style( 'alg-wc-wish-list-izitoast' );
 
 			// Main js file.
 			$js_file = 'assets/js/frontend' . $suffix . '.js';
-			$js_ver  = date( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
+			$js_ver  = gmdate( "ymd-Gis", filemtime( ALG_WC_WL_DIR . $js_file ) );
 			wp_register_script( 'alg-wc-wish-list', ALG_WC_WL_URL . $js_file, array( 'jquery' ), $js_ver, true );
 			wp_enqueue_script( 'alg-wc-wish-list' );
 		}
 
 		/**
-		 * fix_fontawesome_url.
+		 * get_font_awesome_css_url.
 		 *
-		 * @version 1.9.9
-		 * @since   1.6.7
+		 * Returns the Font Awesome stylesheet URL based on the configured source.
 		 *
+		 * @version 3.5.0
+		 * @since   3.4.7
+		 *
+		 * @return string
 		 */
-		function fix_fontawesome_url_option() {
-			$css_file = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME_URL, 'https://use.fontawesome.com/releases/v6.4.2/css/all.css' );
-			if ( 'https//use.fontawesome.com/releases/v5.5.0/css/all.css' === $css_file ) {
-				update_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME_URL, 'https://use.fontawesome.com/releases/v6.4.2/css/all.css' );
+		private function get_font_awesome_css_url() {
+			$font_awesome_cdn_urls = array(
+				'cdn'        => 'https://use.fontawesome.com/releases/v6.4.2/css/all.css',
+				// jsDelivr's @6 alias always serves the latest 6.x release; use.fontawesome.com no longer provides a "latest" URL.
+				'cdn_latest' => 'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6/css/all.min.css',
+			);
+			$source = get_option( Alg_WC_Wish_List_Settings_General::OPTION_FONT_AWESOME_SOURCE, 'local' );
+			if ( isset( $font_awesome_cdn_urls[ $source ] ) ) {
+				return $font_awesome_cdn_urls[ $source ];
 			}
+
+			return ALG_WC_WL_URL . 'assets/vendor/fontawesome/css/all.min.css';
 		}
 
 		/**
@@ -1556,7 +1605,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * get_font_awesome_icon_class.
 		 *
-		 * @version 1.9.9
+		 * @version 3.5.0
 		 * @since   1.5.9
 		 *
 		 * @param $class
@@ -1570,11 +1619,8 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 					$class = 'fab fa-facebook-square';
 					break;
 				case 'twitter':
-					$class            = 'fab fa-twitter-square';
-					$font_awesome_url = get_option( 'alg_wc_wl_fontawesome_url', 'https://use.fontawesome.com/releases/v6.4.2/css/all.css' );
-					if ( false !== strpos( $font_awesome_url, '/v6' ) ) {
-						$class = 'fa-brands fa-square-x-twitter';
-					}
+					// Both the bundled copy and the CDN are Font Awesome 6.4.2.
+					$class = 'fa-brands fa-square-x-twitter';
 					break;
 				case 'google_plus':
 					$class = 'fab fa-google-plus-square';
@@ -1596,10 +1642,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 		/**
 		 * handle_responsive_script.
 		 *
-		 * @version 3.2.0
+		 * @version 3.4.7
 		 * @since   1.9.0
 		 */
 		function handle_responsive_script() {
+			if ( ! $this->should_enqueue_frontend_assets() ) {
+				return;
+			}
+
 			$php_to_js_data = array(
 				'max_width'         => get_option( 'alg_wc_wl_responsiveness_max_width', 768 ),
 				'max_height'        => get_option( 'alg_wc_wl_responsiveness_max_height', 400 ),
@@ -1609,7 +1659,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 			?>
 			<script>
 				jQuery( document ).ready( function ( $ ) {
-					let data = <?php echo json_encode( $php_to_js_data );?>;
+					let data = <?php echo wp_json_encode( $php_to_js_data );?>;
 					let isMobile = false;
 					$( window ).on( "load resize scroll", function () {
 						if ( data.evaluation_method == 'max_width_or_max_height' ) {
@@ -1622,6 +1672,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Core' ) ) {
 				} );
 			</script>
 			<?php if ( 'yes' === get_option( 'alg_wc_wl_multiple_wishlist_enabled', 'no' ) ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted template HTML rendered by plugin/theme template loader.
 				echo alg_wc_wl_locate_template( 'alg_wc_wishlistmodal.php', array() );
 			}
 		}

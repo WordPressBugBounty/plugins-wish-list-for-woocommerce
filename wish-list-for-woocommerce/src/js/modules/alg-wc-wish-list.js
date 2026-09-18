@@ -4,7 +4,7 @@
  * This js is mainly responsible for adding / removing WooCommerce product items from Wish list through Ajax,
  * and to show a notification to user when Ajax response is complete.
  *
- * @version   3.1.9
+ * @version   3.4.9
  * @since     1.0.0
  * @requires  jQuery.js
  */
@@ -12,8 +12,7 @@
 alg_wc_wl_get_toggle_wishlist_item_data = function ( clicked_btn ) {
 	data = {
 		action: alg_wc_wl_ajax.action_toggle_item,
-		nonce: alg_wc_wl_ajax.toggle_nonce,
-		unlogged_user_id: alg_wc_wish_list.get_cookie( 'alg-wc-wl-user-id' ),
+		security: alg_wc_wl_ajax.nonce,
 		alg_wc_wl_item_id: clicked_btn.attr( 'data-item_id' ),
 		wtab_id: clicked_btn.attr( 'data-wtab_id' )
 	};
@@ -52,12 +51,12 @@ alg_wc_wish_list = {
 
 	setupRemoveAllButton: function () {
 		let remove_btn_selector = '.alg-wc-wl-remove-all';
+		var toggle_item_events_str = this.isTouchScreen() ? alg_wc_wl_ajax.toggle_item_events.touchscreen.join( ' ' ) : alg_wc_wl_ajax.toggle_item_events.default.join( ' ' );
 		// Remove items via ajax
-		jQuery( document.body ).on( 'mouseup touchend', remove_btn_selector, function () {
+		jQuery( document.body ).on( toggle_item_events_str, remove_btn_selector, function () {
 			var this_btn = jQuery( this );
 			let data = {
 				action: alg_wc_wl_ajax.action_remove_all,
-				unlogged_user_id: alg_wc_wish_list.get_cookie( 'alg-wc-wl-user-id' ),
 				security: alg_wc_wl_ajax.nonce
 			}
 			if ( !this_btn.hasClass( 'loading' ) ) {

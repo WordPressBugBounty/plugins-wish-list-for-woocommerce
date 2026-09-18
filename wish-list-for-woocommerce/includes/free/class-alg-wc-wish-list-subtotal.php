@@ -1,8 +1,8 @@
 <?php
 /**
- * Wish List for WooCommerce Pro - Subtotal.
+ * Wishlist for WooCommerce - Subtotal.
  *
- * @version 2.0.4
+ * @version 3.5.1
  * @since   2.0.3
  * @author  WPFactory.
  */
@@ -19,12 +19,12 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Subtotal' ) ) {
 		/**
 		 * init.
 		 *
-		 * @version 2.0.4
+		 * @version 3.4.7
 		 * @since   2.0.3
 		 */
 		function init() {
 			add_filter( 'alg_wc_wl_locate_template_params', array( $this, 'override_wishlist_params' ), 11, 3 );
-			add_filter( 'wp_footer', array( $this, 'subtotal_js' ), 11, 3 );
+			add_action( 'wp_footer', array( $this, 'subtotal_js' ), 11, 3 );
 			add_action( Alg_WC_Wish_List_Actions::WISH_LIST_TABLE_AFTER, array( $this, 'display_subtotal' ), 9, 3 );
 			add_action( Alg_WC_Wish_List_Actions::WISH_LIST_TABLE_BEFORE, array( $this, 'display_subtotal' ), 11, 3 );
 		}
@@ -32,16 +32,17 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Subtotal' ) ) {
 		/**
 		 * display_subtotal.
 		 *
-		 * @version 2.1.9
+		 * @version 3.4.7
 		 * @since   2.0.4
 		 *
 		 * @param $wish_list_query
 		 * @param $attributes
 		 */
 		function display_subtotal( $wish_list_query, $attributes, $params ) {
-			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) : '';
-			$queried_user_id           = ! empty( $user_id_from_query_string ) ? Alg_WC_Wish_List_Query_Vars::crypt_user( $user_id_from_query_string, 'd' ) : null;
-			$queried_user_id           = empty( $queried_user_id ) ? $user_id_from_query_string : $queried_user_id;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only query var used to identify a shared wishlist view, no data mutation.
+			$user_id_from_query_string = isset( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ Alg_WC_Wish_List_Query_Vars::USER ] ) ) : '';
+			$shared_user               = Alg_WC_Wish_List_Query_Vars::parse_shared_user_id( $user_id_from_query_string );
+			$queried_user_id           = $shared_user['user_id'] ? $shared_user['user_id'] : $shared_user['guest_id'];
 			// Doesn't show if queried user id is the user itself
 			if ( $queried_user_id && Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id() != $queried_user_id ) {
 				return $wish_list_query;
@@ -56,7 +57,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Subtotal' ) ) {
 				while ( $wish_list_query->have_posts() ) {
 					$wish_list_query->the_post();
 					$product                  = wc_get_product( get_the_ID() );
-					$qty                      = isset( $attributes[ $product->get_id() ] ) && isset( $attributes[ $product->get_id() ]['quantity'] ) ? intval( $attributes[ $product->get_id() ]['quantity'] ) : 1;
+					$qty                      = apply_filters( 'alg_wc_wl_subtotal_qty', 1, $product, $attributes );
 					$subtotal_value           += (float) $qty * (float) $product->get_price();
 					$wishlist[ get_the_ID() ] = array( 'subtotal' => (float) $qty * (float) $product->get_price(), 'price' => (float) $product->get_price() );
 				}
@@ -66,6 +67,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Subtotal' ) ) {
 				$args['wishlist']             = $wishlist;
 				$this->subtotal_template_info = $args;
 				/*wc_get_template( 'alg_wcwl-subtotal.php', $args );*/
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted template HTML rendered by plugin/theme template loader.
 				echo alg_wc_wl_locate_template( 'alg_wcwl-subtotal.php', $args );
 			}
 		}
@@ -123,7 +125,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Subtotal' ) ) {
 			?>
 			<script>
 				document.addEventListener( 'DOMContentLoaded', function () {
-					let data = <?php echo json_encode( $php_to_js );?>;
+					let data = <?php echo wp_json_encode( $php_to_js );?>;
 					let formatter = new Intl.NumberFormat( data.locale.replace( "_", "-" ), {
 						style: 'currency',
 						currency: data.currency,

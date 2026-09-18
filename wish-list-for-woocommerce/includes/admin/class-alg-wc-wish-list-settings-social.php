@@ -2,7 +2,7 @@
 /**
  * Wishlist for WooCommerce - Social Section Settings
  *
- * @version 3.2.5
+ * @version 3.4.7
  * @since   1.0.0
  * @author  WPFactory
  */
@@ -20,6 +20,8 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Social' ) ) :
 		const OPTION_FACEBOOK           = 'alg_wc_wl_social_facebook';
 		const OPTION_TWITTER            = 'alg_wc_wl_social_twitter';
 		const OPTION_EMAIL              = 'alg_wc_wl_social_email';
+		const OPTION_EMAIL_REQUIRE_LOGIN  = 'alg_wc_wl_social_email_require_login';
+		const OPTION_EMAIL_SEND_DELAY   = 'alg_wc_wl_social_email_send_delay';
 		const OPTION_EMAIL_ADMIN_EMAILS = 'alg_wc_wl_social_email_adm_emails';
 		const OPTION_EMAIL_SUBJECT      = 'alg_wc_wl_social_email_subject';
 		const OPTION_COPY               = 'alg_wc_wl_social_copy';
@@ -64,7 +66,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Social' ) ) :
 		/**
 		 * get_settings.
 		 *
-		 * @version 3.2.5
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		function get_settings( $settings = array() ) {
@@ -121,6 +123,25 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Social' ) ) :
 					'default' => 'yes',
 				),
 				array(
+					'title'    => __( 'Login required', 'wish-list-for-woocommerce' ),
+					'desc'     => __( 'Only allow logged-in users to share wishlists via email', 'wish-list-for-woocommerce' ),
+					'desc_tip' => __( 'Recommended for security: prevents automated scripts from using your store to send emails to arbitrary recipients. When enabled, guests will not see the email sharing option.', 'wish-list-for-woocommerce' ),
+					'type'     => 'checkbox',
+					'id'       => self::OPTION_EMAIL_REQUIRE_LOGIN,
+					'default'  => 'yes',
+				),
+				array(
+					'title'             => __( 'Send delay', 'wish-list-for-woocommerce' ),
+					'desc'              => __( 'Minimum time in seconds between two emails sent from the same user or visitor.', 'wish-list-for-woocommerce' ),
+					'desc_tip'          => __( 'Helps prevent abuse of the email sharing feature. Set to 0 to disable the delay.', 'wish-list-for-woocommerce' ),
+					'type'              => 'number',
+					'id'                => self::OPTION_EMAIL_SEND_DELAY,
+					'default'           => 15,
+					'custom_attributes' => array(
+						'min' => 0,
+					),
+				),
+				array(
 					'title'   => __( 'Subject', 'wish-list-for-woocommerce' ),
 					'desc'    => __( 'Display a subject field', 'wish-list-for-woocommerce' ),
 					'type'    => 'checkbox',
@@ -146,8 +167,10 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Social' ) ) :
 				array(
 					'title'    => __( 'Facebook', 'wish-list-for-woocommerce' ),
 					'desc'     => __( 'Share on Facebook', 'wish-list-for-woocommerce' ),
+					/* translators: %s: Open Graph image meta property name. */
 					'desc_tip' => sprintf( __( 'In order to display a proper image on Facebook posts a meta with the %s property is required.', 'wish-list-for-woocommerce' ), '<strong>' . 'og:image' . '</strong>' ) . '<br />' .
-					              sprintf( __( 'You can easily setup it with the <a href="%s">Yoast SEO</a> plugin for example.', 'wish-list-for-woocommerce' ), 'https://wordpress.org/plugins/wordpress-seo/' ),
+						/* translators: %s: Yoast SEO plugin URL. */
+						sprintf( __( 'You can easily setup it with the <a href="%s">Yoast SEO</a> plugin for example.', 'wish-list-for-woocommerce' ), 'https://wordpress.org/plugins/wordpress-seo/' ),
 					'type'     => 'checkbox',
 					'id'       => self::OPTION_FACEBOOK,
 					'default'  => 'yes',
@@ -155,8 +178,10 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Social' ) ) :
 				array(
 					'title'    => __( 'X/Twitter', 'wish-list-for-woocommerce' ),
 					'desc'     => __( 'Share on X/Twitter', 'wish-list-for-woocommerce' ),
+					/* translators: %s: Twitter meta tag name. */
 					'desc_tip' => sprintf( __( 'In order to display a proper image on Tweets a meta with the %s name is required.', 'wish-list-for-woocommerce' ), '<strong>' . 'twitter:card' . '</strong>' ) . '<br />' .
-					              sprintf( __( 'You can easily setup it with the <a href="%s">Yoast SEO</a> plugin for example.', 'wish-list-for-woocommerce' ), 'https://wordpress.org/plugins/wordpress-seo/' ),
+						/* translators: %s: Yoast SEO plugin URL. */
+						sprintf( __( 'You can easily setup it with the <a href="%s">Yoast SEO</a> plugin for example.', 'wish-list-for-woocommerce' ), 'https://wordpress.org/plugins/wordpress-seo/' ),
 					'type'     => 'checkbox',
 					'id'       => self::OPTION_TWITTER,
 					'default'  => 'yes',

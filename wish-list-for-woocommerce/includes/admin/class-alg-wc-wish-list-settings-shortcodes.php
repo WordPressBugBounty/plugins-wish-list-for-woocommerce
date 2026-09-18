@@ -1,8 +1,8 @@
 <?php
 /**
- * Wish List for WooCommerce Pro - Shortcodes.
+ * Wishlist for WooCommerce - Shortcodes.
  *
- * @version 3.3.5
+ * @version 3.5.4
  * @since   2.2.1
  * @author  WPFactory.
  */
@@ -73,7 +73,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Shortcodes' ) ) :
 		/**
 		 * get_settings.
 		 *
-		 * @version 3.3.5
+		 * @version 3.5.4
 		 * @since   2.2.1
 		 */
 		function get_settings( $settings = array() ) {
@@ -99,7 +99,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Shortcodes' ) ) :
 					'desc_tip' => Alg_WC_Wish_List_Shortcodes::format_shortcode_params( array(
 						'ignore_excluded_items' => array(
 							'desc'    => __( 'Ignore excluded items.', 'wish-list-for-woocommerce' ),
-							'default' => 'false',
+							'default' => 'true',
 						),
 						'template'              => array(
 							'desc'    => __( 'HTML template used to display the counter.', 'wish-list-for-woocommerce' ),
@@ -158,13 +158,15 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Shortcodes' ) ) :
 				array(
 					'title'             => '[alg_wc_wl_icon]',
 					'desc'              => __( 'Wishlist icon with a number indicating the amount of items in the wishlist.', 'wish-list-for-woocommerce' ),
-					'desc_tip'          => sprintf( __( 'Used behind the scenes on the %s option, an enhanced version of the %s shortcode.', 'wish-list-for-woocommerce' ), '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=alg_wc_wish_list' ) . '">' . __( 'General > Nav menu item', 'wish-list-for-woocommerce' ) . '</a>', '<code>[alg_wc_wl_counter]</code>' ) . ' ' .
+					/* translators: %1$s: settings page link, %2$s: shortcode */
+					'desc_tip'          => sprintf( __( 'Used behind the scenes on the %1$s option, an enhanced version of the %2$s shortcode.', 'wish-list-for-woocommerce' ), '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=alg_wc_wish_list' ) . '">' . __( 'General > Nav menu item', 'wish-list-for-woocommerce' ) . '</a>', '<code>[alg_wc_wl_counter]</code>' ) . ' ' .
+					                       /* translators: %s: settings page link */
 					                       sprintf( __( 'The icon used is the same from the thumb button and can be changed with the option %s.', 'wish-list-for-woocommerce' ), '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=alg_wc_wish_list&section=style' ) . '">' . __( 'Style > Thumb button > Icon - Added', 'wish-list-for-woocommerce' ) ) . '</a>' .
 					                       '<br /><br />' .
 					                       \Alg_WC_Wish_List_Shortcodes::format_shortcode_params( array(
 						                       'ignore_excluded_items' => array(
 							                       'desc'    => __( 'Ignore excluded items.', 'wish-list-for-woocommerce' ),
-							                       'default' => 'false',
+							                       'default' => 'true',
 						                       ),
 						                       'link'                  => array(
 							                       'desc'    => __( 'If enabled, the icon will point to the wishlist page.', 'wish-list-for-woocommerce' ),
@@ -174,7 +176,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Shortcodes' ) ) :
 					'type'              => 'checkbox',
 					'default'           => 'yes',
 					'id'                => 'alg_wc_wl_sc_icon',
-					'custom_attributes' => apply_filters( 'alg_wc_wishlist_settings', array( 'disabled' => 'disabled' ) )
 				),
 				array(
 					'type' => 'sectionend',

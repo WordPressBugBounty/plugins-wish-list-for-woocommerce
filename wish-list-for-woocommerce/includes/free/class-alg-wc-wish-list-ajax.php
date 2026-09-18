@@ -2,7 +2,7 @@
 /**
  * Wishlist for WooCommerce - Ajax.
  *
- * @version 3.4.3
+ * @version 3.5.1
  * @since   1.0.0
  * @author  WPFactory
  */
@@ -21,8 +21,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		const ACTION_SAVE_MULTIPLE_WISHLIST    = 'alg_wc_wl_save_multiple_wish_list';
 		const ACTION_DELETE_MULTIPLE_WISHLIST  = 'alg_wc_wl_delete_multiple_wish_list';
 		const ACTION_SAVE_WISHLIST             = 'alg_wc_wl_save_to_multiple_wish_list';
-		const ACTION_DUPLICATE_WISHLIST        = 'alg_wc_wl_save_duplicate_wish_list';
-		const ACTION_GET_WISH_LIST_SHORTCODE   = 'alg_wc_wl_pro_get_wish_list_sc';
+		const ACTION_GET_WISH_LIST_SHORTCODE   = 'alg_wc_wl_get_wish_list_sc';
 
 
 		/**
@@ -80,23 +79,22 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for toggling items to user wishlist.
 		 *
-		 * @version 1.8.8
+		 * @version 3.4.7
 		 * @since   1.0.0
 		 */
 		public static function toggle_wish_list_item() {
 			if ( ! isset( $_POST['alg_wc_wl_item_id'] ) ) {
 				die();
 			}
-			check_ajax_referer( 'alg_wc_wl_toggle_item', 'nonce' );
+			check_ajax_referer( 'alg_wc_wl', 'security' );
 			if ( isset( $_POST['wtab_id'] ) && $_POST['wtab_id'] > 0 ) {
-				$tab_id   = $_POST['wtab_id'];
-				$item_id  = $_POST['alg_wc_wl_item_id'];
+				$tab_id   = absint( wp_unslash( $_POST['wtab_id'] ) );
+				$item_id  = absint( wp_unslash( $_POST['alg_wc_wl_item_id'] ) );
 				$response = self::delete_multiple_wishlist_item( $item_id, $tab_id );
 				wp_send_json_success( $response );
 			} else {
 				$response = Alg_WC_Wish_List::toggle_wish_list_item( array(
-					'item_id'          => intval( sanitize_text_field( $_POST['alg_wc_wl_item_id'] ) ),
-					'unlogged_user_id' => sanitize_text_field( $_POST['unlogged_user_id'] )
+					'item_id' => intval( sanitize_text_field( wp_unslash( $_POST['alg_wc_wl_item_id'] ) ) ),
 				) );
 				$response = apply_filters( 'alg_wc_wl_toggle_item_ajax_response', $response );
 				if ( $response['ok'] ) {
@@ -110,11 +108,12 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for get wishlist.
 		 *
-		 * @version 3.1.6
+		 * @version 3.5.1
 		 * @since   1.3.0
 		 */
 		public static function get_wish_list() {
-			$args                      = wp_parse_args( $_POST, array(
+			check_ajax_referer( 'alg_wc_wl', 'security' );
+			$args                      = wp_parse_args( wp_unslash( $_POST ), array(
 				'ignore_excluded_items' => false,
 			) );
 			$use_id_from_unlogged_user = false;
@@ -123,7 +122,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 				$user_id = $user->ID;
 			} else {
 				$use_id_from_unlogged_user = true;
-				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 			}
 			$wishlisted_items = Alg_WC_Wish_List::get_wish_list( $user_id, $use_id_from_unlogged_user, $args['ignore_excluded_items'] );
 
@@ -143,6 +142,10 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 
 			}
 
+			if ( $args['ignore_excluded_items'] ) {
+				$wishlisted_items = Alg_WC_Wish_List::remove_excluded_items( $wishlisted_items );
+			}
+
 			$response = array( 'wishlist' => ! is_array( $wishlisted_items ) ? array() : $wishlisted_items );
 			wp_send_json_success( $response );
 		}
@@ -150,15 +153,15 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Load ajax actions on javascript.
 		 *
-		 * @version 3.1.9
+		 * @version 3.5.1
 		 * @since   1.0.0
 		 *
 		 * @param $script
 		 */
 		public static function localize_script( $script ) {
-			$default_toggle_events = array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', get_option( 'alg_wc_wl_default_js_toggle_events', 'mouseup,touchend' ) ) ) );
-			$mobile_toggle_events  = array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', get_option( 'alg_wc_wl_mobile_js_toggle_events', 'mouseup,touchend' ) ) ) );
-			wp_localize_script( $script, 'alg_wc_wl_ajax', array(
+			$default_toggle_events = array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', get_option( 'alg_wc_wl_default_js_toggle_events', 'click' ) ) ) );
+			$mobile_toggle_events  = array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', get_option( 'alg_wc_wl_mobile_js_toggle_events', 'click' ) ) ) );
+			wp_localize_script( $script, 'alg_wc_wl_ajax', apply_filters( 'alg_wc_wl_ajax_localize', array(
 				'action_remove_all'               => self::ACTION_REMOVE_ALL_FROM_WISH_LIST,
 				'action_toggle_item'              => self::ACTION_TOGGLE_WISH_LIST_ITEM,
 				'action_get_multiple_wishlist'    => self::ACTION_GET_MULTIPLE_WISHLIST,
@@ -169,17 +172,15 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 				'allow_unlogged_user_add_remove'  => ( 'no' == get_option( Alg_WC_Wish_List_Settings_Buttons::OPTION_ALLOW_UNLOGGED_USERS, 'yes' ) && ! is_user_logged_in() ) ? 'no' : 'yes',
 				'is_account_page'                 => is_account_page() ? 'yes' : 'no',
 				'action_save_wishlist'            => self::ACTION_SAVE_WISHLIST,
-				'action_duplicate_wishlist'       => self::ACTION_DUPLICATE_WISHLIST,
 				'ajax_action'                     => self::ACTION_GET_WISH_LIST,
 				'nonce'                           => wp_create_nonce( 'alg_wc_wl' ),
-				'toggle_nonce'                    => wp_create_nonce( 'alg_wc_wl_toggle_item' ),
 				'toggle_item_events'              => apply_filters( 'alg_wc_wl_toggle_item_events', array(
 					'default'     => $default_toggle_events,
 					'touchscreen' => $mobile_toggle_events
 				) )
-			) );
+			) ) );
 
-			wp_localize_script( $script, 'alg_wc_wl_pro_get_wl_shortcode', array( 'ajax_action' => self::ACTION_GET_WISH_LIST_SHORTCODE ) );
+			wp_localize_script( $script, 'alg_wc_wl_get_wl_shortcode', array( 'ajax_action' => self::ACTION_GET_WISH_LIST_SHORTCODE ) );
 		}
 
 		/**
@@ -242,7 +243,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Get wishlist shortcode via ajax.
 		 *
-		 * @version 3.4.3
+		 * @version 3.5.1
 		 * @since   1.2.8
 		 *
 		 * @param   string  $handle  What script should be handled.
@@ -252,18 +253,19 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 			if ( ! $work_with_cache ) {
 				return;
 			}
+			$post_data = "action:alg_wc_wl_get_wl_shortcode.ajax_action,alg_wc_wl_uunlogged:unlogged_param,alg_wc_wl_user:alg_wc_wl_user,alg_wc_wl_user_tab:alg_wc_wl_user_tab,alg_wc_wl_current_page_id:alg_wc_wl_current_page_id,security: alg_wc_wl_ajax.nonce";
+			$post_data = apply_filters( 'alg_wc_wl_wishlist_sc_ajax_post_data', $post_data );
 			$script = "
 			jQuery(document).ready(function($){
 				var unlogged_param = new URLSearchParams(window.location.search).get('alg_wc_wl_uunlogged');
 				var alg_wc_wl_user = new URLSearchParams(window.location.search).get('alg_wc_wl_user');
 				var alg_wc_wl_user_tab = new URLSearchParams(window.location.search).get( 'wtab' );
-				var alg_wc_wl_orderby = new URLSearchParams(window.location.search).get( 'alg_wc_wl_orderby' );
 				var shortlink = $( 'link[rel=\"shortlink\"]' ).attr( 'href' );
 				var alg_wc_wl_current_page_id = shortlink ? new URLSearchParams(new URL(shortlink).search).get( 'p' ) : '';
 				var wl_table_selector = '.alg-wc-wl-view-table-container';
 				var wl_table_container = $(wl_table_selector);
 				if(wl_table_container.length){					
-					$.post(alg_wc_wl.ajaxurl, {action:alg_wc_wl_pro_get_wl_shortcode.ajax_action,alg_wc_wl_uunlogged:unlogged_param,alg_wc_wl_user:alg_wc_wl_user,alg_wc_wl_user_tab:alg_wc_wl_user_tab,alg_wc_wl_orderby:alg_wc_wl_orderby,alg_wc_wl_current_page_id:alg_wc_wl_current_page_id,security: alg_wc_wl_ajax.nonce}, function (response) {
+					$.post(alg_wc_wl.ajaxurl, {{$post_data}}, function (response) {
 						if (response.success) {
 							$(wl_table_selector).replaceWith($(response.data.shortcode));
 							$(wl_table_selector).removeClass('ajax-loading');
@@ -333,20 +335,22 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for save new wishlist.
 		 *
-		 * @version 3.3.2
+		 * @version 3.4.5
 		 * @since   2.0.5
 		 */
 		public static function save_to_multiple_wishlist() {
-			check_ajax_referer( 'alg_wc_wl_toggle_item', 'nonce' );
-			$args = wp_parse_args( $_POST, array(
+		check_ajax_referer( 'alg_wc_wl', 'security' );
+			$posted = wp_unslash( $_POST );
+			$args   = wp_parse_args( $posted, array(
 				'ignore_excluded_items' => false,
+				'value'                 => '',
 			) );
 
 			if ( is_user_logged_in() ) {
 				$user    = wp_get_current_user();
 				$user_id = $user->ID;
 			} else {
-				$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+				$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 			}
 
 			$transient = Alg_WC_Wish_List_Transients::WISH_LIST_MULTIPLE;
@@ -383,7 +387,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 				$user    = wp_get_current_user();
 				$user_id = $user->ID;
 			} else {
-				$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+				$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 			}
 
 			$wishlist_list_items = Alg_WC_Wish_List::get_multiple_wishlists_with_all_item( $user_id );
@@ -409,10 +413,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 			$product = wc_get_product( $item_id );
 
 			$params = apply_filters( 'alg_wc_wl_toggle_item_texts', array(
+				/* translators: %s: product title */
 				'added'                => __( '%s was successfully added to wishlist.', 'wish-list-for-woocommerce' ),
+				/* translators: %s: product title */
 				'removed'              => __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' ),
+				/* translators: %s: product title */
 				'see_wish_list'        => __( 'See your wishlist', 'wish-list-for-woocommerce' ),
 				'error'                => apply_filters( 'alg_wc_wl_error_text', __( 'Sorry, Some error occurred. Please, try again later.', 'wish-list-for-woocommerce' ) ),
+				/* translators: %s: my account page URL */
 				'cant_toggle_unlogged' => sprintf( __( 'Please <a class=\'alg-wc-wl-link\' href="%s">login</a> if you want to use the Wishlist', 'wish-list-for-woocommerce' ), wc_get_page_permalink( 'myaccount' ) ),
 			) );
 
@@ -445,16 +453,20 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for delete multiple wishlist.
 		 *
-		 * @version 3.3.2
+		 * @version 3.5.0
 		 * @since   2.0.5
 		 */
 		public static function delete_multiple_wishlist() {
-			$args = wp_parse_args( $_POST, array(
+		check_ajax_referer( 'alg_wc_wl', 'security' );
+			$posted = wp_unslash( $_POST );
+			$args = wp_parse_args( $posted, array(
 				'ignore_excluded_items' => false,
+				'wishlist_tab_id'       => 0,
+				'wishlist_page_id'      => 0,
 			) );
 
-			$wishlist_tab_id  = $args['wishlist_tab_id'];
-			$wishlist_page_id = $args['wishlist_page_id'];
+			$wishlist_tab_id  = absint( $args['wishlist_tab_id'] );
+			$wishlist_page_id = absint( $args['wishlist_page_id'] );
 
 			if ( $wishlist_tab_id > 0 ) {
 				$index = $wishlist_tab_id - 1;
@@ -462,7 +474,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 					$user    = wp_get_current_user();
 					$user_id = $user->ID;
 				} else {
-					$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+					$user_id = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 				}
 
 				$wishlist_list       = Alg_WC_Wish_List::get_multiple_wishlists( $user_id );
@@ -519,22 +531,25 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for save to new multiple wishlist.
 		 *
-		 * @version 3.3.2
+		 * @version 3.4.5
 		 * @since   2.0.5
 		 */
 		public static function save_multiple_wishlist() {
-			$args = wp_parse_args( $_POST, array(
+		check_ajax_referer( 'alg_wc_wl', 'security' );
+			$posted = wp_unslash( $_POST );
+			$args   = wp_parse_args( $posted, array(
 				'ignore_excluded_items' => false,
 				'value'                 => array(),
+				'item_id'               => 0,
 			) );
 
-			if ( isset( $args['value'] ) ) {
-				$value = $args['value'];
+			if ( isset( $args['value'] ) && is_array( $args['value'] ) ) {
+				$value = array_map( 'sanitize_text_field', $args['value'] );
 			} else {
 				$value = array();
 			}
 
-			$item_id = $args['item_id'];
+			$item_id = absint( $args['item_id'] );
 
 			if ( is_user_logged_in() ) {
 				$user                      = wp_get_current_user();
@@ -542,7 +557,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 				$use_id_from_unlogged_user = false;
 				$res                       = Alg_WC_Wish_List_Item::remove_item_from_wish_list( $item_id, $user_id );
 			} else {
-				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 				$use_id_from_unlogged_user = $user_id ? true : false;
 				$res                       = Alg_WC_Wish_List_Item::remove_item_from_wish_list( $item_id, $user_id, $use_id_from_unlogged_user );
 
@@ -617,11 +632,14 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 			$icon   = false;
 
 			$params = apply_filters( 'alg_wc_wl_toggle_item_texts', array(
+				/* translators: %s: product title */
 				'added'                => __( '%s was successfully added to wishlist.', 'wish-list-for-woocommerce' ),
 				'saved'                => __( 'Wishlist successfully saved.', 'wish-list-for-woocommerce' ),
+				/* translators: %s: product title */
 				'removed'              => __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' ),
 				'see_wish_list'        => __( 'See your wishlist', 'wish-list-for-woocommerce' ),
 				'error'                => apply_filters( 'alg_wc_wl_error_text', __( 'Sorry, Some error occurred. Please, try again later.', 'wish-list-for-woocommerce' ) ),
+				/* translators: %s: my account page URL */
 				'cant_toggle_unlogged' => sprintf( __( 'Please <a class=\'alg-wc-wl-link\' href="%s">login</a> if you want to use the Wishlist', 'wish-list-for-woocommerce' ), wc_get_page_permalink( 'myaccount' ) ),
 			) );
 
@@ -683,7 +701,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Adds variable product data to response text when an item is toggled
 		 *
-		 * @version 3.2.5
+		 * @version 3.4.5
 		 * @since   1.4.6
 		 *
 		 * @param $texts
@@ -691,17 +709,34 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		 * @return mixed
 		 */
 		public static function add_variable_product_data_to_response_text( $texts ) {
-			if ( ! empty ( $_POST['attributes']['variation_id'] ) ) {
+			$posted_nonce = isset( $_POST['security'] ) ? sanitize_text_field( wp_unslash( $_POST['security'] ) ) : '';
+			if ( empty( $posted_nonce ) || ! wp_verify_nonce( $posted_nonce, 'alg_wc_wl' ) ) {
+				return $texts;
+			}
+
+			$posted_attributes = ( isset( $_POST['attributes'] ) && is_array( $_POST['attributes'] ) )
+				? array_map( 'sanitize_text_field', wp_unslash( $_POST['attributes'] ) )
+				: array();
+			$variation_id      = isset( $posted_attributes['variation_id'] ) ? absint( $posted_attributes['variation_id'] ) : 0;
+			if ( $variation_id > 0 ) {
 				$attributes_arr = array();
-				foreach ( $_POST['attributes']['terms'] as $key => $value ) {
+				$posted_terms   = ( isset( $posted_attributes['terms'] ) && is_array( $posted_attributes['terms'] ) ) ? $posted_attributes['terms'] : array();
+				foreach ( $posted_terms as $key => $value ) {
+					$key              = sanitize_text_field( $key );
+					$value            = sanitize_text_field( $value );
 					$tax_sanitized    = str_replace( "attribute_", "", $key );
 					$term             = get_term_by( 'slug', $value, $tax_sanitized );
 					$attributes_arr[] = $term ? $term->name : $value;
 				}
-				$attributes       = implode( ', ', $attributes_arr );
-				$texts['added']   = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST, __( '%s was successfully added to wishlist', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
+
+				$attributes          = implode( ', ', $attributes_arr );
+				/* translators: %s: product title */
+				$added_text_default   = __( '%s was successfully added to wishlist', 'wish-list-for-woocommerce' );
+				/* translators: %s: product title */
+				$removed_text_default = __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' );
+				$texts['added']   = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_ADDED_TO_WISH_LIST, $added_text_default ) );
 				$texts['added']   = preg_replace( '/\%s/', '%s - (' . $attributes . ')', $texts['added'] );
-				$texts['removed'] = __( sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_REMOVED_FROM_WISH_LIST, __( '%s was successfully removed from wishlist', 'wish-list-for-woocommerce' ) ) ), 'wish-list-for-woocommerce' );
+				$texts['removed'] = sanitize_text_field( get_option( Alg_WC_Wish_List_Settings_Texts::OPTION_TEXTS_REMOVED_FROM_WISH_LIST, $removed_text_default ) );
 				$texts['removed'] = preg_replace( '/\%s/', '%s - (' . $attributes . ')', $texts['removed'] );
 			}
 
@@ -711,23 +746,25 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for get from new multiple wishlist.
 		 *
-		 * @version 3.1.8
+		 * @version 3.4.5
 		 * @since   2.0.5
 		 */
 		public static function get_multiple_wishlist() {
-			check_ajax_referer( 'alg_wc_wl_toggle_item', 'nonce' );
-			$args = wp_parse_args( $_POST, array(
+		check_ajax_referer( 'alg_wc_wl', 'security' );
+			$posted = wp_unslash( $_POST );
+			$args   = wp_parse_args( $posted, array(
 				'ignore_excluded_items' => false,
+				'item_id'               => 0,
 			) );
 
-			$item_id = $args['item_id'];
+			$item_id = absint( $args['item_id'] );
 
 			if ( is_user_logged_in() ) {
 				$user                      = wp_get_current_user();
 				$user_id                   = $user->ID;
 				$use_id_from_unlogged_user = false;
 			} else {
-				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
+				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id( true );
 				$use_id_from_unlogged_user = $user_id ? true : false;
 			}
 
@@ -763,7 +800,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 				<div class="algwcwishlistmodal-checkbox-wrapper">
 					<span class="titlebox"><?php echo esc_html( get_option( 'alg_wc_wl_texts_default_wishlist', __( 'Default Wishlist', 'wish-list-for-woocommerce' ) ) ); ?></span>
 					<label for="algwcwishlistmodal-cbk">
-						<input type="checkbox" id="algwcwishlistmodal-cbk" class="whichlist-check" value="-99" <?php echo $checked_default; ?>>
+						<input type="checkbox" id="algwcwishlistmodal-cbk" class="whichlist-check" value="-99" <?php echo esc_attr( $checked_default ); ?>>
 						<span class="cbx">
 						  <svg width="12px" height="11px" viewBox="0 0 12 11">
 							<polyline points="1 6.29411765 4.5 10 11 1"></polyline>
@@ -788,9 +825,9 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 					?>
 					<li>
 						<div class="algwcwishlistmodal-checkbox-wrapper">
-							<span class="titlebox"><?php echo esc_attr( $list ); ?></span>
-							<label for="algwcwishlistmodal-cbk<?php echo $k + 1; ?>">
-								<input type="checkbox" id="algwcwishlistmodal-cbk<?php echo $k + 1; ?>" class="whichlist-check" value="<?php echo $k; ?>" <?php echo $checked; ?>>
+							<span class="titlebox"><?php echo esc_html( $list ); ?></span>
+							<label for="algwcwishlistmodal-cbk<?php echo esc_attr( $k + 1 ); ?>">
+								<input type="checkbox" id="algwcwishlistmodal-cbk<?php echo esc_attr( $k + 1 ); ?>" class="whichlist-check" value="<?php echo absint( $k ); ?>" <?php echo esc_attr( $checked ); ?>>
 								<span class="cbx">
 							  <svg width="12px" height="11px" viewBox="0 0 12 11">
 								<polyline points="1 6.29411765 4.5 10 11 1"></polyline>
@@ -814,28 +851,22 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 		/**
 		 * Ajax method for get from new multiple wishlist.
 		 *
-		 * @version 3.2.4
+		 * @version 3.4.7
 		 * @since   3.0.8
 		 */
 		public static function admin_clear_wishlist() {
-			$args = wp_parse_args( $_GET, array(
+			$posted_get = wp_unslash( $_GET );
+			$args = wp_parse_args( $posted_get, array(
 				'user_id' => 0,
 				'_wpnonce' => false,
 			) );
-			$current_user = wp_get_current_user();
-			$allowed_roles = array( 'administrator', 'shop_manager' );
-			$permission = 0;
-			foreach ( $allowed_roles as $roles ) {
-				if ( in_array( $roles, $current_user->roles ) ) {
-					$permission = 1;
-				}
-			}
-			if ( !isset($args['_wpnonce'] ) || !wp_verify_nonce( $args['_wpnonce'], 'clear_wishlist' ) || $permission == 0 ) {
+
+			if ( ! isset( $args['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( $args['_wpnonce'] ), 'clear_wishlist' ) || ! current_user_can( 'manage_woocommerce' ) ) {
 				exit;
 			}
 
+			$user_id = absint( $args['user_id'] );
 			if ( $args['user_id'] > 0 ) {
-				$user_id = $args['user_id'];
 				delete_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM );
 				delete_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM_METAS );
 				delete_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM_MULTIPLE );
@@ -846,94 +877,6 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Ajax' ) ) {
 			$ref_url = add_query_arg( 'cleared', '1', wp_get_referer() );
 			wp_safe_redirect( $ref_url );
 			exit;
-		}
-
-		/**
-		 * Ajax method for copy wishlist.
-		 *
-		 * @version 3.4.3
-		 * @since   3.0.8
-		 */
-		public static function save_duplicate_wishlist() {
-			check_ajax_referer( 'alg_wc_wl_toggle_item', 'nonce' );
-
-			$args = wp_parse_args( $_POST, array(
-				'value_tab_id' => '',
-				'value'        => '',
-			) );
-
-			$value        = $args['value'];
-			$value_tab_id = $args['value_tab_id'];
-			if ( $value_tab_id != 0 ) {
-				$value_tab_id = (int) $value_tab_id;
-			} else {
-				$value_tab_id = 'd';
-			}
-
-			$wishlisted_items = array();
-			if ( is_user_logged_in() ) {
-				$user_id                   = get_current_user_id();
-				$use_id_from_unlogged_user = false;
-				$ignore_excluded_items     = false;
-			} else {
-				$user_id                   = Alg_WC_Wish_List_Unlogged_User::get_unlogged_user_id();
-				$use_id_from_unlogged_user = $user_id ? true : false;
-				$ignore_excluded_items     = false;
-			}
-
-			// save wishlist name 
-			$wishlist_list = Alg_WC_Wish_List::get_multiple_wishlists( $user_id );
-			if ( ! $wishlist_list ) {
-				$wishlist_list = array();
-			}
-			array_push( $wishlist_list, $value );
-
-			foreach ( $wishlist_list as $k => $val ){
-				if ( $value == $val ) {
-					$duplicate_tab_id = $k;
-				}
-			}
-			if ( is_int( $user_id ) && $user_id > 0 ) {
-				update_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM_MULTIPLE_NAME, $wishlist_list );
-			} else {
-				$transient = Alg_WC_Wish_List_Transients::WISH_LIST_MULTIPLE;
-				Alg_WC_Wish_List_Unlogged_User::save_guest_wishlist( "{$transient}{$user_id}", $user_id, $wishlist_list );
-			}
-
-			if ( is_int( $value_tab_id ) ) {
-				$wishlisted_items = Alg_WC_Wish_List::get_multiple_wishlist_items( $user_id, $use_id_from_unlogged_user, $ignore_excluded_items, $value_tab_id );
-			} else if ( $value_tab_id == 'd' ) {
-				$wishlisted_items = Alg_WC_Wish_List::get_wish_list( $user_id, $use_id_from_unlogged_user, $ignore_excluded_items );
-			}
-
-			if ( is_int( $user_id ) && $user_id > 0 ) {
-
-				// get only multiple wishlist items
-				$arrange_arr = get_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM_MULTIPLE, true );
-
-				if ( empty( $arrange_arr ) ) {
-					$arrange_arr = array();
-				}
-
-				$arrange_arr[ $duplicate_tab_id ] = $wishlisted_items;
-				// save only multiple wishlist items
-				update_user_meta( $user_id, Alg_WC_Wish_List_User_Metas::WISH_LIST_ITEM_MULTIPLE, $arrange_arr );
-
-			} else {
-				$transient = Alg_WC_Wish_List_Transients::WISH_LIST_MULTIPLE_STORE;
-				$wishlist_list_items = Alg_WC_Wish_List::get_multiple_wishlists_with_all_item( $user_id );
-
-				if ( empty( $wishlist_list_items ) ) {
-					$wishlist_list_items = array();
-				}
-
-				$wishlist_list_items[ $duplicate_tab_id ] = $wishlisted_items;
-				Alg_WC_Wish_List_Unlogged_User::save_guest_wishlist( "{$transient}{$user_id}", $user_id, $wishlist_list_items );
-			}
-
-
-			$response = array( 'ok' => true );
-			wp_send_json_success( $response );
 		}
 
 	}

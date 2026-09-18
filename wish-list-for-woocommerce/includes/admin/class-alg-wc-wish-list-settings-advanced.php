@@ -2,7 +2,7 @@
 /**
  * Wish List for WooCommerce - Advanced settings.
  *
- * @version 3.3.2
+ * @version 3.5.1
  * @since   2.0.1
  * @author  WPFactory
  */
@@ -58,7 +58,7 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Advanced' ) ) :
 		/**
 		 * get_settings.
 		 *
-		 * @version 3.3.2
+		 * @version 3.5.1
 		 * @since   2.0.1
 		 */
 		function get_settings( $settings = array() ) {
@@ -86,8 +86,8 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Advanced' ) ) :
 					'type'     => 'select',
 					'class'    => 'chosen_select',
 					'options'  => array(
-						'wc_session' => __( 'WooCommerce Session', 'url-coupons-for-woocommerce-by-algoritmika' ),
-						'cookie'     => __( 'Cookie', 'url-coupons-for-woocommerce-by-algoritmika' ),
+						'wc_session' => __( 'WooCommerce Session', 'wish-list-for-woocommerce' ),
+						'cookie'     => __( 'Cookie', 'wish-list-for-woocommerce' ),
 					),
 				),
 				array(
@@ -145,11 +145,12 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Advanced' ) ) :
 					'custom_attributes' => apply_filters( 'alg_wc_wishlist_settings', array( 'disabled' => 'disabled' ) )
 				),
 				array(
-					'title'    => __( 'Events', 'wish-list-for-woocommerce' ),
-					'desc_tip' => __( 'Use one line for event.', 'wish-list-for-woocommerce' ),
-					'type'     => 'textarea',
-					'default'  => self::get_updater_events_default(),
-					'id'       => self::OPTION_WISH_LIST_UPDATER_EVENTS,
+					'title'             => __( 'Events', 'wish-list-for-woocommerce' ),
+					'desc_tip'          => __( 'Use one line for event.', 'wish-list-for-woocommerce' ),
+					'type'              => 'textarea',
+					'default'           => self::get_updater_events_default(),
+					'id'                => self::OPTION_WISH_LIST_UPDATER_EVENTS,
+					'custom_attributes' => apply_filters( 'alg_wc_wishlist_settings', array( 'disabled' => 'disabled' ) ),
 				),
 				array(
 					'type' => 'sectionend',
@@ -161,21 +162,25 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Advanced' ) ) :
 					'title' => __( 'Javascript toggle events', 'wish-list-for-woocommerce' ),
 					'type'  => 'title',
 					'desc'  => __( 'JavaScript events that toggle items to/from wishlist.', 'wish-list-for-woocommerce' ) . ' ' .
-					           sprintf( __( 'Common events related to click: %s.', 'wish-list-for-woocommerce' ), implode( ', ', array_map( function ( $word ) {
-						           return '<code>' . $word . '</code>';
-					           }, array( 'click', 'dblclick', 'mouseup', 'touchend' ) ) ) ),
+					           sprintf(
+						           /* translators: %s: comma-separated list of JS click events */
+						           __( 'Common events related to click: %s.', 'wish-list-for-woocommerce' ),
+						           implode( ', ', array_map( function ( $word ) {
+							           return '<code>' . $word . '</code>';
+						           }, array( 'click', 'dblclick', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup' ) ) )
+					           ),
 					'id'    => 'alg_wc_wl_js_toggle_events_opt',
 				),
 				array(
 					'title'   => __( 'Default toggle events', 'wish-list-for-woocommerce' ),
 					'type'    => 'text',
-					'default' => 'mouseup,touchend',
+					'default' => 'click',
 					'id'      => 'alg_wc_wl_default_js_toggle_events',
 				),
 				array(
 					'title'   => __( 'Mobile events', 'wish-list-for-woocommerce' ),
 					'type'    => 'text',
-					'default' => 'mouseup,touchend',
+					'default' => 'click',
 					'id'      => 'alg_wc_wl_mobile_js_toggle_events',
 				),
 				array(
@@ -190,14 +195,13 @@ if ( ! class_exists( 'Alg_WC_Wish_List_Settings_Advanced' ) ) :
 		/**
 		 * Get possible ajax urls
 		 *
-		 * @version 1.5.0
+		 * @version 3.5.0
 		 * @since   1.5.0
 		 * @return array
 		 */
 		function get_possible_ajax_urls() {
 			return array(
 				admin_url( 'admin-ajax.php', 'relative' ),
-				home_url( 'wp-admin/admin-ajax.php' ),
 				admin_url( 'admin-ajax.php' ),
 				home_url( 'admin-ajax.php' ),
 			);
